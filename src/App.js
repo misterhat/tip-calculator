@@ -11,7 +11,7 @@ const defaultTill = {
     employee: '',
     paidTips: '0.00',
     splitEach: '0.00',
-    splitEachPercentage: '0%',
+    splitEachPercentage: '0.00%',
     splits: ['0.00'],
     totalSplitOut: '0.00',
     received: '0.00'
@@ -34,7 +34,7 @@ function formatDollars(cents) {
 }
 
 function toPercent(num) {
-    return `${(num * 100).toFixed(2)}%`;
+    return `${((num || 0) * 100).toFixed(2)}%`;
 }
 
 // convert a till row to cents to avoid floaty math
@@ -125,7 +125,7 @@ function TillRow(props) {
             return;
         }
 
-        const splitEach = toCents(value);
+        let splitEach = toCents(value);
 
         let { paidTips } = tillToCents(till);
         let totalSplitOut = splitEach * spliteeLength;
@@ -140,7 +140,9 @@ function TillRow(props) {
             paidTips
         );
 
-        const splitEachDollars = toDollars(totalSplitOut / spliteeLength);
+        splitEach = totalSplitOut / spliteeLength;
+
+        const splitEachDollars = toDollars(splitEach);
 
         onChange(props.index, {
             ...till,
@@ -157,6 +159,7 @@ function TillRow(props) {
     const splitEachInput = props.usePercentage ? (
         <input
             type="text"
+            maxLength={6}
             value={props.splitEachPercentage}
             onChange={(e) => {
                 onChange(props.index, {
@@ -168,6 +171,8 @@ function TillRow(props) {
                 const splitEachDollars =
                     (Number.parseFloat(till.splitEachPercentage) / 100) *
                     Number(till.paidTips);
+
+                console.log(splitEachDollars);
 
                 onSplitEachBlur(splitEachDollars);
             }}
@@ -201,8 +206,10 @@ function TillRow(props) {
                     onBlur={() => {
                         if (!till.paidTips) {
                             onChange(props.index, {
-                                ...till,
-                                paidTips: '0.00'
+                                ...defaultTill,
+                                splits: Array.from({
+                                    length: spliteeLength
+                                }).map(() => '0.00')
                             });
 
                             return;
@@ -226,6 +233,9 @@ function TillRow(props) {
                             onChange(props.index, {
                                 ...till,
                                 paidTips: toDollars(paidTips),
+                                splitEachPercentage: toPercent(
+                                    toCents(till.splitEach) / paidTips
+                                ),
                                 received: toDollars(paidTips - totalSplitOut)
                             });
                         }
@@ -417,10 +427,9 @@ function App() {
 
                 till.splitEach = toDollars(splitEach);
 
-                till.splitEachPercentage = `${(
-                    (splitEach / toCents(till.paidTips)) *
-                    100
-                ).toFixed(2)}%`;
+                till.splitEachPercentage = toPercent(
+                    splitEach / toCents(till.paidTips)
+                );
             }
         } else if (!newSplitee) {
             for (const till of newTills) {
@@ -442,10 +451,9 @@ function App() {
                 till.totalSplitOut = toDollars(totalSplitOut);
                 till.splitEach = toDollars(splitEach);
 
-                till.splitEachPercentage = `${(
-                    (splitEach / toCents(till.paidTips)) *
-                    100
-                ).toFixed(2)}%`;
+                till.splitEachPercentage = toPercent(
+                    splitEach / toCents(till.paidTips)
+                );
 
                 till.received = toDollars(
                     toCents(till.paidTips) - totalSplitOut
@@ -466,10 +474,7 @@ function App() {
         .reduce((a, b) => a + b, 0);
 
     const totalPaidCents = centTills.reduce((a, b) => a + (b.paidTips || 0), 0);
-
-    const totalSplitPercentage = (
-        (totalSplitCents / totalPaidCents || 0) * 100
-    ).toFixed(2);
+    const totalSplitPercentage = toPercent(totalSplitCents / totalPaidCents);
 
     const onSplitBlur = (tillIndex, spliteeIndex) => {
         const till = tills[tillIndex];
