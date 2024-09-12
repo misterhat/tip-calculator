@@ -217,7 +217,7 @@ function TillRow(props) {
 
                         const { paidTips, totalSplitOut } = tillToCents(till);
 
-                        if (totalSplitOut >= paidTips) {
+                        if (totalSplitOut > paidTips) {
                             onChange(props.index, {
                                 ...till,
                                 paidTips: toDollars(paidTips),
@@ -501,9 +501,7 @@ function App() {
         updateTills(tillIndex, {
             ...till,
             splitEach: toDollars(averageSplit),
-            splitEachPercentage: `${((averageSplit / paidTips) * 100).toFixed(
-                2
-            )}%`,
+            splitEachPercentage: toPercent(averageSplit / paidTips),
             splits: splits.map((split) => toDollars(split)),
             totalSplitOut: toDollars(totalSplitOut),
             received: toDollars(received)
@@ -569,7 +567,7 @@ function App() {
             <p style={{ margin: '16px 8px 16px 8px' }}>
                 Splitting <strong>{formatDollars(totalSplitCents)}</strong> from{' '}
                 <strong>{formatDollars(totalPaidCents)}</strong> collected{' '}
-                <strong>({totalSplitPercentage}%)</strong>.
+                <strong>({totalSplitPercentage})</strong>.
             </p>
 
             <section>
