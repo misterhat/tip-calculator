@@ -1,5 +1,3 @@
-// TODO don't change anything if input hasn't changed?
-
 import './App.css';
 import CurrencyInput from 'react-currency-input-field';
 import { useState } from 'react';
@@ -13,8 +11,10 @@ const defaultTill = {
     splitEach: '0.00',
     splitEachPercentage: '0.00%',
     splits: ['0.00'],
-    totalSplitOut: '0.00',
-    received: '0.00'
+    totalSplit: '0.00',
+    totalSplitPercentage: '0.00%',
+    received: '0.00',
+    receivedPercentage: '0.00%'
 };
 
 // format for CurrencyInputs
@@ -43,7 +43,7 @@ function tillToCents(till) {
         paidTips: toCents(till.paidTips),
         splitEach: toCents(till.splitEach),
         splits: till.splits.map(toCents),
-        totalSplitOut: toCents(till.totalSplitOut),
+        totalSplit: toCents(till.totalSplit),
         received: toCents(till.received)
     };
 }
@@ -72,6 +72,25 @@ function TillCurrencyInput(props) {
             decimalsLimit={2}
             allowNegativeValue={false}
             {...props}
+        />
+    );
+}
+
+function PercentInput(props) {
+    return (
+        <input
+            type="text"
+            inputMode="decimal"
+            maxLength={6}
+            value={props.value}
+            onChange={props.onChange}
+            onBlur={(e) => {
+                const dollars =
+                    (Number.parseFloat(e.target.value) / 100) *
+                    Number(props.paidTips);
+
+                props.onBlur(dollars || 0);
+            }}
         />
     );
 }
@@ -107,8 +126,8 @@ function TillRow(props) {
 
     const onSplitEachBlur = (value) => {
         if (!value) {
-            const totalSplitOut = toCents(till.totalSplitOut);
-            const splitEach = totalSplitOut / spliteeLength;
+            const totalSplit = toCents(till.totalSplit);
+            const splitEach = totalSplit / spliteeLength;
             const splitEachDollars = toDollars(splitEach);
 
             onChange(props.index, {
@@ -128,21 +147,22 @@ function TillRow(props) {
         let splitEach = toCents(value);
 
         let { paidTips } = tillToCents(till);
-        let totalSplitOut = splitEach * spliteeLength;
+        let totalSplit = splitEach * spliteeLength;
 
-        if (totalSplitOut > paidTips) {
-            totalSplitOut = paidTips;
+        if (totalSplit > paidTips) {
+            totalSplit = paidTips;
         }
 
-        totalSplitOut = findNearestDivisibleNumber(
-            totalSplitOut,
+        totalSplit = findNearestDivisibleNumber(
+            totalSplit,
             spliteeLength,
             paidTips
         );
 
-        splitEach = totalSplitOut / spliteeLength;
+        splitEach = totalSplit / spliteeLength;
 
         const splitEachDollars = toDollars(splitEach);
+        const received = paidTips - totalSplit;
 
         onChange(props.index, {
             ...till,
@@ -151,40 +171,150 @@ function TillRow(props) {
             splits: Array.from({ length: spliteeLength }).map(
                 () => splitEachDollars
             ),
-            totalSplitOut: toDollars(totalSplitOut),
-            received: toDollars(paidTips - totalSplitOut)
+            totalSplit: toDollars(totalSplit),
+            totalSplitPercentage: toPercent(totalSplit / paidTips),
+            received: toDollars(received),
+            receivedPercentage: toPercent(received / paidTips)
+        });
+    };
+
+    const onTotalSplitBlur = (value) => {
+        let totalSplit = toCents(value);
+        const paidTips = toCents(till.paidTips);
+
+        if (totalSplit > paidTips) {
+            totalSplit = paidTips;
+        }
+
+        let splitEach = totalSplit / spliteeLength;
+
+        totalSplit = findNearestDivisibleNumber(
+            splitEach * spliteeLength,
+            spliteeLength,
+            paidTips
+        );
+
+        splitEach = totalSplit / spliteeLength;
+
+        const splitEachDollars = toDollars(splitEach);
+        const received = paidTips - totalSplit;
+
+        onChange(props.index, {
+            ...till,
+            splitEach: splitEachDollars,
+            splitEachPercentage: toPercent(splitEach / paidTips),
+            splits: Array.from({ length: spliteeLength }).map(
+                () => splitEachDollars
+            ),
+            totalSplit: toDollars(totalSplit),
+            totalSplitPercentage: toPercent(totalSplit / paidTips),
+            received: toDollars(received),
+            receivedPercentage: toPercent(received / paidTips)
+        });
+    };
+
+    const onReceivedBlur = (value) => {
+        const paidTips = toCents(till.paidTips);
+        let received = toCents(value);
+
+        if (received >= paidTips) {
+            received = paidTips;
+        }
+
+        const totalSplit = findNearestDivisibleNumber(
+            paidTips - received,
+            spliteeLength,
+            paidTips
+        );
+
+        const splitEach = totalSplit / spliteeLength;
+        const splitEachDollars = toDollars(splitEach);
+        received = paidTips - totalSplit;
+
+        onChange(props.index, {
+            ...till,
+            splitEach: splitEachDollars,
+            splitEachPercentage: toPercent(
+                splitEach / toCents(till.paidTips)
+            ),
+            splits: Array.from({ length: spliteeLength }).map(
+                () => splitEachDollars
+            ),
+            totalSplit: toDollars(totalSplit),
+            totalSplitPercentage: toPercent(
+                totalSplit / paidTips
+            ),
+            received: toDollars(received),
+            receivedPercentage: toPercent(received / paidTips)
         });
     };
 
     const splitEachInput = props.usePercentage ? (
-        <input
-            type="text"
-            maxLength={6}
+        <PercentInput
+            paidTips={till.paidTips}
             value={props.splitEachPercentage}
-            onChange={(e) => {
+            onChange={(e) =>
                 onChange(props.index, {
                     ...till,
                     splitEachPercentage: e.target.value
-                });
-            }}
-            onBlur={() => {
-                const splitEachDollars =
-                    (Number.parseFloat(till.splitEachPercentage) / 100) *
-                    Number(till.paidTips);
-
-                console.log(splitEachDollars);
-
-                onSplitEachBlur(splitEachDollars);
-            }}
+                })
+            }
+            onBlur={onSplitEachBlur}
         />
     ) : (
         <TillCurrencyInput
             onValueChange={(value) =>
                 onChange(props.index, { ...till, splitEach: value })
             }
-            onBlur={() => onSplitEachBlur(till.splitEach)}
+            onBlur={() => onSplitEachBlur(till.splitEach || 0)}
             value={props.splitEach}
             placeholder="Split-out each"
+        />
+    );
+
+    const totalSplitInput = props.usePercentage ? (
+        <PercentInput
+            paidTips={till.paidTips}
+            value={props.totalSplitPercentage}
+            onChange={(e) =>
+                onChange(props.index, {
+                    ...till,
+                    totalSplitPercentage: e.target.value
+                })
+            }
+            onBlur={onTotalSplitBlur}
+        />
+    ) : (
+        <TillCurrencyInput
+            onValueChange={(value) =>
+                onChange(props.index, { ...till, totalSplit: value })
+            }
+            onBlur={() => onTotalSplitBlur(till.totalSplit || 0)}
+            placeholder="Total split-out"
+            value={props.totalSplit}
+        />
+    );
+
+    const receivedInput = props.usePercentage ? (
+        <PercentInput
+            paidTips={till.paidTips}
+            value={till.receivedPercentage}
+            onChange={(e) =>
+                onChange(props.index, {
+                    ...till,
+                    receivedPercentage: e.target.value
+                })
+            }
+            onBlur={onReceivedBlur}
+        />
+    ) : (
+        <TillCurrencyInput
+            onValueChange={(value) =>
+                onChange(props.index, { ...till, received: value })
+            }
+            onBlur={() => onReceivedBlur(till.received || 0)}
+            placeholder="Received tips"
+            value={props.received}
         />
     );
 
@@ -215,28 +345,35 @@ function TillRow(props) {
                             return;
                         }
 
-                        const { paidTips, totalSplitOut } = tillToCents(till);
+                        const { paidTips, splitEach, totalSplit, received } =
+                            tillToCents(till);
 
-                        if (totalSplitOut > paidTips) {
+                        if (totalSplit > paidTips) {
                             onChange(props.index, {
                                 ...till,
                                 paidTips: toDollars(paidTips),
                                 splitEach: toDollars(0),
-                                splitEachPercentage: '0%',
+                                splitEachPercentage: '0.00%',
                                 splits: Array.from({
                                     length: spliteeLength
                                 }).map(() => toDollars(0)),
-                                totalSplitOut: toDollars(0),
-                                received: toDollars(paidTips)
+                                totalSplit: toDollars(0),
+                                totalSplitPercentage: '0.00%',
+                                received: toDollars(paidTips),
+                                receivedPercentage: '0.00%'
                             });
                         } else {
                             onChange(props.index, {
                                 ...till,
                                 paidTips: toDollars(paidTips),
                                 splitEachPercentage: toPercent(
-                                    toCents(till.splitEach) / paidTips
+                                    splitEach / paidTips
                                 ),
-                                received: toDollars(paidTips - totalSplitOut)
+                                totalSplitPercentage: toPercent(
+                                    totalSplit / paidTips
+                                ),
+                                received: toDollars(paidTips - totalSplit),
+                                receivedPercentage: toPercent(received / paidTips)
                             });
                         }
                     }}
@@ -245,91 +382,8 @@ function TillRow(props) {
                 />
             </td>
             <td>{splitEachInput}</td>
-            <td>
-                <TillCurrencyInput
-                    onValueChange={(value) =>
-                        onChange(props.index, { ...till, totalSplitOut: value })
-                    }
-                    onBlur={() => {
-                        const value = till.totalSplitOut || 0;
-
-                        const paidTips = toCents(till.paidTips);
-                        let totalSplitOut = toCents(value);
-
-                        if (totalSplitOut > paidTips) {
-                            totalSplitOut = paidTips;
-                        }
-
-                        let splitEach = totalSplitOut / spliteeLength;
-
-                        totalSplitOut = findNearestDivisibleNumber(
-                            splitEach * spliteeLength,
-                            spliteeLength,
-                            paidTips
-                        );
-
-                        splitEach = totalSplitOut / spliteeLength;
-
-                        const splitEachDollars = toDollars(splitEach);
-
-                        onChange(props.index, {
-                            ...till,
-                            splitEach: splitEachDollars,
-                            splitEachPercentage: toPercent(
-                                splitEach / toCents(till.paidTips)
-                            ),
-                            splits: Array.from({ length: spliteeLength }).map(
-                                () => splitEachDollars
-                            ),
-                            totalSplitOut: toDollars(totalSplitOut),
-                            received: toDollars(paidTips - totalSplitOut)
-                        });
-                    }}
-                    placeholder="Total split-out"
-                    value={props.totalSplitOut}
-                />
-            </td>
-            <td>
-                <TillCurrencyInput
-                    onValueChange={(value) =>
-                        onChange(props.index, { ...till, received: value })
-                    }
-                    onBlur={() => {
-                        const value = till.received || 0;
-
-                        const paidTips = toCents(till.paidTips);
-                        let received = toCents(value);
-
-                        if (received >= paidTips) {
-                            received = paidTips;
-                        }
-
-                        const totalSplitOut = findNearestDivisibleNumber(
-                            paidTips - received,
-                            spliteeLength,
-                            paidTips
-                        );
-
-                        const splitEach = totalSplitOut / spliteeLength;
-                        const splitEachDollars = toDollars(splitEach);
-
-                        onChange(props.index, {
-                            ...till,
-                            splitEach: splitEachDollars,
-                            splitEachPercentage: toPercent(
-                                totalSplitOut / toCents(till.paidTips)
-                            ),
-                            splits: Array.from({ length: spliteeLength }).map(
-                                () => splitEachDollars
-                            ),
-                            totalSplitOut: toDollars(totalSplitOut),
-                            received: toDollars(paidTips - totalSplitOut)
-                        });
-                    }}
-                    placeholder="Received tips"
-                    value={props.received}
-                />
-            </td>
+            <td>{totalSplitInput}</td>
+            <td>{receivedInput}</td>
             <td>
                 <DeleteButton onClick={() => onChange(props.index, undefined)}>
                     X
@@ -418,12 +472,12 @@ function App() {
             for (const till of newTills) {
                 till.splits = till.splits.concat('0.00');
 
-                const totalSplitOut = till.splits.reduce(
+                const totalSplit = till.splits.reduce(
                     (a, b) => a + toCents(b),
                     0
                 );
 
-                const splitEach = totalSplitOut / newSplitees.length;
+                const splitEach = totalSplit / newSplitees.length;
 
                 till.splitEach = toDollars(splitEach);
 
@@ -441,23 +495,29 @@ function App() {
                     till.splits = ['0.00'];
                 }
 
-                const totalSplitOut = till.splits.reduce(
+                const totalSplit = till.splits.reduce(
                     (a, b) => a + toCents(b),
                     0
                 );
 
-                const splitEach = totalSplitOut / newSplitees.length;
+                const splitEach = totalSplit / newSplitees.length;
 
-                till.totalSplitOut = toDollars(totalSplitOut);
+                till.totalSplit = toDollars(totalSplit);
                 till.splitEach = toDollars(splitEach);
 
                 till.splitEachPercentage = toPercent(
                     splitEach / toCents(till.paidTips)
                 );
 
-                till.received = toDollars(
-                    toCents(till.paidTips) - totalSplitOut
+                till.totalSplitPercentage = toPercent(
+                    toCents(till.totalSplit) / toCents(till.paidTips)
                 );
+
+                const paidTips = toCents(till.paidTips);
+                const received = paidTips - totalSplit;
+
+                till.received = toDollars(received);
+                till.receivedPercentage = toPercent(received / paidTips);
             }
         }
 
@@ -468,7 +528,7 @@ function App() {
 
     const totalSplitCents = centTills
         .map((till) => {
-            const splitOut = till.totalSplitOut || 0;
+            const splitOut = till.totalSplit || 0;
             return splitOut > till.paidTips ? till.paidTips : splitOut;
         })
         .reduce((a, b) => a + b, 0);
@@ -481,9 +541,9 @@ function App() {
         let { paidTips, splits } = tillToCents(till);
         splits[spliteeIndex] = splits[spliteeIndex] || 0;
 
-        let totalSplitOut = splits.reduce((a, b) => a + (b || 0), 0);
+        let totalSplit = splits.reduce((a, b) => a + (b || 0), 0);
 
-        if (totalSplitOut > paidTips) {
+        if (totalSplit > paidTips) {
             const remaining =
                 paidTips -
                 splits.reduce((a, b, i) => {
@@ -493,18 +553,20 @@ function App() {
             splits[spliteeIndex] = remaining;
         }
 
-        totalSplitOut = splits.reduce((a, b) => a + (b || 0), 0);
+        totalSplit = splits.reduce((a, b) => a + (b || 0), 0);
 
-        const averageSplit = totalSplitOut / splitees.length;
-        const received = paidTips - totalSplitOut;
+        const averageSplit = totalSplit / splitees.length;
+        const received = paidTips - totalSplit;
 
         updateTills(tillIndex, {
             ...till,
             splitEach: toDollars(averageSplit),
             splitEachPercentage: toPercent(averageSplit / paidTips),
             splits: splits.map((split) => toDollars(split)),
-            totalSplitOut: toDollars(totalSplitOut),
-            received: toDollars(received)
+            totalSplit: toDollars(totalSplit),
+            totalSplitPercentage: toPercent(totalSplit / paidTips),
+            received: toDollars(received),
+            receivedPercentage: toPercent(received / paidTips)
         });
     };
 
